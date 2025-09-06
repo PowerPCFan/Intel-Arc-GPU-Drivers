@@ -25,24 +25,23 @@ jobs:
 
       - name: Install dependencies
         run: >-
-          python -m pip install --upgrade pip &&
-          python -m pip install -r requirements.txt &&
-          python -m playwright install --with-deps chromium
+          python3 -m pip install --upgrade pip &&
+          python3 -m pip install -r requirements.txt &&
+          python3 -m playwright install --with-deps chromium
 
       - name: Run scraper and determine if commit is needed
         id: check_link
         run: |-
-          old_link=$(cat configs/link.txt)
-          new_link=$(python scraper.py)
+          old_link=$(cat configs/link.txt 2>/dev/null || echo "")
 
-          echo "old_link=$old_link" >> "$GITHUB_OUTPUT"
-          echo "new_link=$new_link" >> "$GITHUB_OUTPUT"
-
-          if [[ "$new_link" == "Error" ]]; then
-            echo "Scraper returned 'Error'. Skipping update."
+          if ! new_link=$(python3 main.py); then
+            echo "Scraper failed. Skipping update."
             echo "should_commit=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
+
+          echo "old_link=$old_link" >> "$GITHUB_OUTPUT"
+          echo "new_link=$new_link" >> "$GITHUB_OUTPUT"
 
           if [[ "$new_link" != "$old_link" ]]; then
             echo "$new_link" > configs/link.txt
@@ -53,7 +52,7 @@ jobs:
           fi
 
       - name: Commit updated link.txt
-        if: steps.check_link.outputs.should_commit == 'true'
+        if: ${{ steps.check_link.outputs.should_commit == 'true' }}
         run: |-
           git config user.name "Automated"
           git config user.email "actions@users.noreply.github.com"
