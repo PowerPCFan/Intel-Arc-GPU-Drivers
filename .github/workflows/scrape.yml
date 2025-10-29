@@ -29,34 +29,33 @@ jobs:
           python3 -m pip install -r requirements.txt &&
           python3 -m playwright install --with-deps chromium
 
-      - name: Run scraper and determine if commit is needed
-        id: check_link
+      - name: Run scraper
+        id: run_scraper
         run: |-
-          old_link=$(cat configs/link.txt 2>/dev/null || echo "")
-
-          if ! new_link=$(python3 main.py); then
-            echo "Scraper failed. Skipping update."
-            echo "should_commit=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          echo "old_link=$old_link" >> "$GITHUB_OUTPUT"
-          echo "new_link=$new_link" >> "$GITHUB_OUTPUT"
-
-          if [[ "$new_link" != "$old_link" ]]; then
-            echo "$new_link" > configs/link.txt
-            echo "should_commit=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "The link in link.txt is already the latest."
-            echo "should_commit=false" >> "$GITHUB_OUTPUT"
-          fi
+          exit_code=$(python3 main.py; echo $?)
+          echo "exit_code=${exit_code}" >> $GITHUB_ENV
+          echo "exit_code=${exit_code}"
+          echo "exit_code=${exit_code}" >> $GITHUB_OUTPUT
+        shell: bash
+        continue-on-error: true
 
       - name: Commit updated link.txt
-        if: ${{ steps.check_link.outputs.should_commit == 'true' }}
+        if: ${{ steps.run_scraper.outputs.exit_code == '0' }}
         run: |-
+          echo "Update needed. Updating..."
           git config user.name "Automated"
           git config user.email "actions@users.noreply.github.com"
           git add configs/link.txt
           timestamp=$(date -u)
           git commit -m "Update link.txt: ${timestamp}" || exit 0
           git push origin main
+
+      - name: Handle scraper failure
+        if: ${{ steps.run_scraper.outputs.exit_code == '1' }}
+        run: |-
+          echo "Scraper failed. Check logs for details."
+
+      - name: No update needed
+        if: ${{ steps.run_scraper.outputs.exit_code == '2' }}
+        run: |-
+          echo "No update was needed."
